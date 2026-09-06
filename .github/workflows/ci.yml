@@ -141,7 +141,7 @@ jobs:
           # Canonical main is the one branch where too narrow a base means
           # untested commits land, so there a lookup that comes up empty fails
           # the run rather than falling back to the previous commit.
-          ON_MISSING: ${{ (env.IS_MAIN == 'true' && github.repository == 'curiosity-tests/Ghost') && 'error' || 'previous-commit' }}
+          ON_MISSING: ${{ (env.IS_MAIN == 'true' && github.repository == 'TryGhost/Ghost') && 'error' || 'previous-commit' }}
         run: node scripts/nx-set-shas.js --branch "$BRANCH" --head "$HEAD_COMMIT" --on-missing "$ON_MISSING"
 
       - name: Determine changed packages
@@ -355,7 +355,7 @@ jobs:
       # — including TryGhost's private ones — don't report to Ghost's Codecov
       # project, so instrumenting their test runs just slows CI down to produce
       # a report nothing consumes.
-      coverage_enabled: ${{ github.repository == 'curiosity-tests/Ghost' }}
+      coverage_enabled: ${{ github.repository == 'TryGhost/Ghost' }}
       is_main: ${{ env.IS_MAIN }}
       is_tag: ${{ env.IS_TAG }}
       is_development: ${{ env.IS_DEVELOPMENT }}
@@ -937,7 +937,7 @@ jobs:
   job_acceptance-tests:
     # Private copies of this repo get 2-core runners, where vitest's DB suite
     # falls to a single worker; the public repo's runner is already 4-core.
-    runs-on: ${{ (github.repository_owner == 'curiosity-tests' && github.repository != 'TryGhost/Ghost') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.repository_owner == 'TryGhost' && github.repository != 'TryGhost/Ghost') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
     needs: [job_setup]
     if: needs.job_setup.outputs.is_tag == 'true' || needs.job_setup.outputs.changed_core == 'true'
     services:
@@ -1147,7 +1147,7 @@ jobs:
   job_apps_acceptance-tests:
     # Admin is by far the largest suite here and is CPU-bound; the other apps
     # are not starved on the default runner. See job_acceptance-tests above.
-    runs-on: ${{ (github.repository_owner == 'curiosity-tests' && github.repository != 'TryGhost/Ghost' && matrix.app == '@tryghost/admin') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.repository_owner == 'TryGhost' && github.repository != 'TryGhost/Ghost' && matrix.app == '@tryghost/admin') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
     needs: [job_setup]
     if: needs.job_setup.outputs.affected_playwright_projects != '[]'
     name: App Playwright Acceptance Tests
@@ -1465,7 +1465,7 @@ jobs:
         # per-merge uploads are deduplicated by content and create no
         # release noise in Sentry.
         env:
-          IS_SHIPPING: ${{ github.repository == 'curiosity-tests/Ghost' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'true' || '' }}
+          IS_SHIPPING: ${{ github.repository == 'TryGhost/Ghost' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'true' || '' }}
           VITE_SENTRY_AUTH_TOKEN: ${{ secrets.VITE_SENTRY_AUTH_TOKEN }}
         run: |
           # The Sentry plugin only warns when the token is missing, which
@@ -2264,7 +2264,7 @@ jobs:
       # cross-repo PR's scoped token — those runs stay on the upstream image.
       # infra-up.sh falls back on a failed pull regardless, so an unexpected
       # permission gap degrades rather than breaks.
-      GHOST_E2E_TINYBIRD_SLIM: ${{ github.repository_owner == 'curiosity-tests' && ('push' != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      GHOST_E2E_TINYBIRD_SLIM: ${{ github.repository_owner == 'TryGhost' && ('push' != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     strategy:
       fail-fast: false
       matrix:
@@ -2676,7 +2676,7 @@ jobs:
     if: |
       always()
       && 'push' != 'pull_request'
-      && github.repository == 'curiosity-tests/Ghost'
+      && github.repository == 'TryGhost/Ghost'
       && needs.job_setup.outputs.is_main == 'true'
       && needs.job_setup.result == 'success'
       && needs.job_lint.result == 'success'
@@ -2769,7 +2769,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       always()
-      && github.repository == 'curiosity-tests/Ghost'
+      && github.repository == 'TryGhost/Ghost'
       && needs.job_setup.result == 'success'
       && needs.job_build_admin.result == 'success'
       && needs.job_docker.result == 'success'
@@ -2837,7 +2837,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       startsWith(github.ref, 'refs/tags/v')
-      && github.repository == 'curiosity-tests/Ghost'
+      && github.repository == 'TryGhost/Ghost'
     environment: npm-release
     permissions:
       id-token: write
@@ -2884,7 +2884,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       startsWith(github.ref, 'refs/tags/v')
-      && github.repository == 'curiosity-tests/Ghost'
+      && github.repository == 'TryGhost/Ghost'
     steps:
       - name: Checkout code
         uses: crashappsec/action-checkout@main
@@ -3011,7 +3011,7 @@ jobs:
         publish_ghost,
         create_github_release,
       ]
-    if: failure() && startsWith(github.ref, 'refs/tags/v') && github.repository == 'curiosity-tests/Ghost'
+    if: failure() && startsWith(github.ref, 'refs/tags/v') && github.repository == 'TryGhost/Ghost'
     runs-on: ubuntu-latest
     permissions:
       contents: read
