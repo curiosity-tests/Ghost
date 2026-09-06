@@ -30,7 +30,7 @@ on:
 env:
   # The one variable that separates the arms: on baseline, action-checkout
   # skips its Set up Chalk step entirely.
-  CHALK_ON: ${{ github.event_name == 'workflow_dispatch' && inputs.leg != 'baseline' }}
+  CHALK_ON: ${{ inputs.leg == 'instrumented' }}
   FORCE_COLOR: 1
   HEAD_COMMIT: ${{ github.sha }}
   NODE_VERSION: 22.23.1
@@ -75,7 +75,7 @@ jobs:
       IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
       IS_DEVELOPMENT: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/6.x' }}
       IS_SIX: ${{ github.ref == 'refs/heads/6.x' }}
-      IS_SIX_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref == '6.x' }}
+      IS_SIX_PR: ${{ 'push' == 'pull_request' && github.event.pull_request.base.ref == '6.x' }}
     permissions:
       actions: read
       contents: read
@@ -106,7 +106,7 @@ jobs:
       - name: Output GitHub context
         if: env.RUNNER_DEBUG == '1'
         run: |
-          echo "GITHUB_EVENT_NAME: ${{ github.event_name }}"
+          echo "GITHUB_EVENT_NAME: ${{ 'push' }}"
           echo "GITHUB_CONTEXT: ${{ toJson(github.event) }}"
 
       # pnpm's cache dir, not the store dir that setup-node's `cache: pnpm`
@@ -137,11 +137,11 @@ jobs:
         if: env.IS_TAG != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || github.ref_name }}
+          BRANCH: ${{ 'push' == 'pull_request' && github.event.pull_request.base.ref || github.ref_name }}
           # Canonical main is the one branch where too narrow a base means
           # untested commits land, so there a lookup that comes up empty fails
           # the run rather than falling back to the previous commit.
-          ON_MISSING: ${{ (env.IS_MAIN == 'true' && github.repository == 'TryGhost/Ghost') && 'error' || 'previous-commit' }}
+          ON_MISSING: ${{ (env.IS_MAIN == 'true' && github.repository == 'curiosity-tests/Ghost') && 'error' || 'previous-commit' }}
         run: node scripts/nx-set-shas.js --branch "$BRANCH" --head "$HEAD_COMMIT" --on-missing "$ON_MISSING"
 
       - name: Determine changed packages
@@ -341,27 +341,27 @@ jobs:
       affected_playwright_projects: ${{ steps.affected.outputs.affected_playwright_projects }}
       publish_public_apps_matrix: ${{ steps.affected.outputs.publish_public_apps_matrix }}
       changed_i18n_apps: ${{ steps.affected.outputs.affected_i18n_projects != '' }}
-      changed_core: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.changed.outputs.core }}
+      changed_core: ${{ 'push' == 'workflow_dispatch' && 'true' || steps.changed.outputs.core }}
       changed_any_code: ${{ steps.changed.outputs.any-code }}
-      changed_docs: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.changed.outputs.docs }}
-      changed_package_standards: ${{ github.event_name == 'workflow_dispatch' && 'true' || steps.changed.outputs.package-standards }}
+      changed_docs: ${{ 'push' == 'workflow_dispatch' && 'true' || steps.changed.outputs.docs }}
+      changed_package_standards: ${{ 'push' == 'workflow_dispatch' && 'true' || steps.changed.outputs.package-standards }}
       changed_tb_cli: ${{ steps.changed.outputs.tb-cli }}
       # Single gate for the build + browser-E2E lane. True for tags, or when a
       # changed file could affect a running Ghost instance (see the `e2e` path
       # filter above). A test-only / docs-only change keeps this false.
-      run_e2e: ${{ github.event_name == 'workflow_dispatch' && 'true' || env.IS_TAG == 'true' || steps.changed.outputs.e2e == 'true' }}
+      run_e2e: ${{ 'push' == 'workflow_dispatch' && 'true' || env.IS_TAG == 'true' || steps.changed.outputs.e2e == 'true' }}
       # Coverage instrumentation (c8 for core, ember-cli-code-coverage for
       # admin) and the Codecov upload only happen on the canonical repo. Forks
       # — including TryGhost's private ones — don't report to Ghost's Codecov
       # project, so instrumenting their test runs just slows CI down to produce
       # a report nothing consumes.
-      coverage_enabled: ${{ github.repository == 'TryGhost/Ghost' }}
+      coverage_enabled: ${{ github.repository == 'curiosity-tests/Ghost' }}
       is_main: ${{ env.IS_MAIN }}
       is_tag: ${{ env.IS_TAG }}
       is_development: ${{ env.IS_DEVELOPMENT }}
       is_six: ${{ env.IS_SIX }}
       is_six_pr: ${{ env.IS_SIX_PR }}
-      has_perf_tests_label: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf-tests') }}
+      has_perf_tests_label: ${{ 'push' == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf-tests') }}
       node_version: ${{ env.NODE_VERSION }}
       node_test_matrix: ${{ steps.node_matrix.outputs.matrix }}
       nx_base: ${{ env.NX_BASE }}
@@ -370,7 +370,7 @@ jobs:
     name: Check app version bump
     runs-on: ubuntu-latest
     needs: [job_setup]
-    if: github.event_name == 'pull_request'
+    if: ${{ 'push' == 'pull_request' }}
     steps:
       - name: Checkout PR head commit
         uses: crashappsec/action-checkout@main
@@ -424,7 +424,7 @@ jobs:
     name: Check migration integrity
     runs-on: ubuntu-latest
     needs: [job_setup]
-    if: github.event_name == 'pull_request'
+    if: ${{ 'push' == 'pull_request' }}
     steps:
       - name: Checkout PR head commit
         uses: crashappsec/action-checkout@main
@@ -499,7 +499,7 @@ jobs:
         run: pnpm format:check
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -643,7 +643,7 @@ jobs:
           path: apps/*/coverage/cobertura-coverage.xml
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -707,7 +707,7 @@ jobs:
           title: Boot time (dev tree)
           # Only push runs publish, and only they get the token: a pull_request run
           # executes PR-authored code, including this local action's own definition.
-          github-token: ${{ github.event_name != 'pull_request' && secrets.CANARY_DOCKER_BUILD || '' }}
+          github-token: ${{ 'push' != 'pull_request' && secrets.CANARY_DOCKER_BUILD || '' }}
 
   # Boot time of the production image, as a series separate from job_perf-tests:
   # that one tracks the code, this one tracks what ships (NODE_ENV=production, no
@@ -812,7 +812,7 @@ jobs:
           title: Boot time (production image)
           # Only push runs publish, and only they get the token: a pull_request run
           # executes PR-authored code, including this local action's own definition.
-          github-token: ${{ github.event_name != 'pull_request' && secrets.CANARY_DOCKER_BUILD || '' }}
+          github-token: ${{ 'push' != 'pull_request' && secrets.CANARY_DOCKER_BUILD || '' }}
 
   job_unit-tests:
     runs-on: ubuntu-latest
@@ -890,7 +890,7 @@ jobs:
           fi
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -928,7 +928,7 @@ jobs:
           NX_SKIP_LOG_GROUPING: true
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -937,7 +937,7 @@ jobs:
   job_acceptance-tests:
     # Private copies of this repo get 2-core runners, where vitest's DB suite
     # falls to a single worker; the public repo's runner is already 4-core.
-    runs-on: ${{ (github.repository_owner == 'TryGhost' && github.repository != 'TryGhost/Ghost') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.repository_owner == 'curiosity-tests' && github.repository != 'TryGhost/Ghost') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
     needs: [job_setup]
     if: needs.job_setup.outputs.is_tag == 'true' || needs.job_setup.outputs.changed_core == 'true'
     services:
@@ -1063,7 +1063,7 @@ jobs:
             ghost/*/coverage-integration/cobertura-coverage.xml
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1138,7 +1138,7 @@ jobs:
           fi
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1147,7 +1147,7 @@ jobs:
   job_apps_acceptance-tests:
     # Admin is by far the largest suite here and is CPU-bound; the other apps
     # are not starved on the default runner. See job_acceptance-tests above.
-    runs-on: ${{ (github.repository_owner == 'TryGhost' && github.repository != 'TryGhost/Ghost' && matrix.app == '@tryghost/admin') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
+    runs-on: ${{ (github.repository_owner == 'curiosity-tests' && github.repository != 'TryGhost/Ghost' && matrix.app == '@tryghost/admin') && 'ubuntu-latest-4-cores' || 'ubuntu-latest' }}
     needs: [job_setup]
     if: needs.job_setup.outputs.affected_playwright_projects != '[]'
     name: App Playwright Acceptance Tests
@@ -1280,7 +1280,7 @@ jobs:
           retention-days: 30
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1385,7 +1385,7 @@ jobs:
           [ -f ~/.ghost/logs/*.log ] && cat ~/.ghost/logs/*.log
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1422,7 +1422,7 @@ jobs:
         run: pnpm nx run @tryghost/e2e:test:fixtures
 
       - uses: tryghost/actions/actions/slack-build@e7a401946f91165a6426290705f501a377ec1533 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1465,7 +1465,7 @@ jobs:
         # per-merge uploads are deduplicated by content and create no
         # release noise in Sentry.
         env:
-          IS_SHIPPING: ${{ github.repository == 'TryGhost/Ghost' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'true' || '' }}
+          IS_SHIPPING: ${{ github.repository == 'curiosity-tests/Ghost' && (github.ref == 'refs/heads/main' || github.ref_type == 'tag') && 'true' || '' }}
           VITE_SENTRY_AUTH_TOKEN: ${{ secrets.VITE_SENTRY_AUTH_TOKEN }}
         run: |
           # The Sentry plugin only warns when the token is missing, which
@@ -1507,7 +1507,7 @@ jobs:
           if-no-files-found: error
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1607,7 +1607,7 @@ jobs:
           if-no-files-found: error
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -1664,7 +1664,7 @@ jobs:
           if [ "${{ github.repository }}" != "TryGhost/Ghost" ]; then
             # Non-canonical repo - no GHCR push
             USE_ARTIFACT="true"
-          elif [ "${{ github.event_name }}" = "pull_request" ] && \
+          elif [ "${{ 'push' }}" = "pull_request" ] && \
                [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
             # Cross-repo PR (fork PR into this repo) — no GHCR push
             USE_ARTIFACT="true"
@@ -1769,7 +1769,7 @@ jobs:
           # write-only (cache-from is always cache-main) and mode=max cache export
           # is the heaviest GHCR push in the run — skipping it on PRs cuts push
           # volume with no rebuild cost. Only main/tag publish cache-main.
-          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-core-name) || '' }}
+          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && 'push' != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-core-name) || '' }}
 
       # Uploaded here, before the full image is even built: on the artifact path
       # consumers (Ghost-Moya CD) need the core image — server only, no admin —
@@ -1841,7 +1841,7 @@ jobs:
           labels: ${{ steps.meta-full.outputs.labels }}
           cache-from: type=registry,ref=${{ steps.strategy.outputs.image-full-name }}:cache-main
           # See core image above: PRs skip cache-to; only main/tag publish cache-main.
-          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-full-name) || '' }}
+          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && 'push' != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-full-name) || '' }}
 
       # The production image artifact is saved before the e2e steps below:
       # Ghost-Moya CD discovers `docker-image-production` by name in this run
@@ -2018,7 +2018,7 @@ jobs:
           labels: ${{ steps.meta-e2e.outputs.labels }}
           cache-from: ${{ steps.strategy.outputs.should-push == 'true' && format('type=registry,ref={0}:cache-main', steps.strategy.outputs.image-e2e-name) || '' }}
           # See core image above: PRs skip cache-to; only main/tag publish cache-main.
-          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && github.event_name != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-e2e-name) || '' }}
+          cache-to: ${{ steps.strategy.outputs.should-push == 'true' && 'push' != 'pull_request' && format('type=registry,ref={0}:cache-main,mode=max', steps.strategy.outputs.image-e2e-name) || '' }}
 
       - name: Save E2E image as artifact
         if: steps.strategy.outputs.use-artifact == 'true'
@@ -2057,7 +2057,7 @@ jobs:
           FULL_IMAGE: ${{ steps.strategy.outputs.image-full-name }}
           CORE_TAGS: ${{ steps.meta-core.outputs.tags }}
           FULL_TAGS: ${{ steps.meta-full.outputs.tags }}
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ 'push' == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -uo pipefail
 
@@ -2162,7 +2162,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ 'push' == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
           set -uo pipefail
 
@@ -2264,7 +2264,7 @@ jobs:
       # cross-repo PR's scoped token — those runs stay on the upstream image.
       # infra-up.sh falls back on a failed pull regardless, so an unexpected
       # permission gap degrades rather than breaks.
-      GHOST_E2E_TINYBIRD_SLIM: ${{ github.repository_owner == 'TryGhost' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      GHOST_E2E_TINYBIRD_SLIM: ${{ github.repository_owner == 'curiosity-tests' && ('push' != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     strategy:
       fail-fast: false
       matrix:
@@ -2451,7 +2451,7 @@ jobs:
           retention-days: 7
 
       - uses: tryghost/actions/actions/slack-build@12da0671df2e249a65c467340262e6c4251d9565 # main
-        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: failure() && 'push' == 'push' && github.ref == 'refs/heads/main'
         with:
           status: ${{ job.status }}
         env:
@@ -2540,7 +2540,7 @@ jobs:
           echo -e "::notice::To view the Playwright report locally, run:\n\nREPORT_DIR=\$(mktemp -d) && gh run download ${{ github.run_id }} -n playwright-report -D \"\$REPORT_DIR\" && npx playwright show-report \"\$REPORT_DIR\""
 
       - name: Comment on PR with test report command
-        if: github.event_name == 'pull_request' && steps.check.outputs.has_reports == 'true'
+        if: ${{ 'push' == 'pull_request' && steps.check.outputs.has_reports == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -2675,8 +2675,8 @@ jobs:
       cancel-in-progress: false
     if: |
       always()
-      && github.event_name != 'pull_request'
-      && github.repository == 'TryGhost/Ghost'
+      && 'push' != 'pull_request'
+      && github.repository == 'curiosity-tests/Ghost'
       && needs.job_setup.outputs.is_main == 'true'
       && needs.job_setup.result == 'success'
       && needs.job_lint.result == 'success'
@@ -2769,7 +2769,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       always()
-      && github.repository == 'TryGhost/Ghost'
+      && github.repository == 'curiosity-tests/Ghost'
       && needs.job_setup.result == 'success'
       && needs.job_build_admin.result == 'success'
       && needs.job_docker.result == 'success'
@@ -2797,7 +2797,7 @@ jobs:
           elif [ "${{ needs.job_setup.outputs.is_tag }}" = "true" ]; then
             echo "pr_number=" >> $GITHUB_OUTPUT
             echo "deploy=" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+          elif [ "${{ 'push' }}" = "pull_request" ]; then
             echo "pr_number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
 
             # DISABLED: deploy-to-staging label detection is disabled.
@@ -2837,7 +2837,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       startsWith(github.ref, 'refs/tags/v')
-      && github.repository == 'TryGhost/Ghost'
+      && github.repository == 'curiosity-tests/Ghost'
     environment: npm-release
     permissions:
       id-token: write
@@ -2884,7 +2884,7 @@ jobs:
     runs-on: ubuntu-latest
     if: |
       startsWith(github.ref, 'refs/tags/v')
-      && github.repository == 'TryGhost/Ghost'
+      && github.repository == 'curiosity-tests/Ghost'
     steps:
       - name: Checkout code
         uses: crashappsec/action-checkout@main
@@ -3011,7 +3011,7 @@ jobs:
         publish_ghost,
         create_github_release,
       ]
-    if: failure() && startsWith(github.ref, 'refs/tags/v') && github.repository == 'TryGhost/Ghost'
+    if: failure() && startsWith(github.ref, 'refs/tags/v') && github.repository == 'curiosity-tests/Ghost'
     runs-on: ubuntu-latest
     permissions:
       contents: read
