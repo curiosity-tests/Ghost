@@ -22,10 +22,6 @@ name: Sync Fork
 # to it (bypass list / "Allow specified actors").
 
 on:
-  schedule:
-    # Daily at 05:37 UTC. Off the top of the hour to dodge GH Actions scheduler
-    # contention (see the same note in renovate.yml).
-    - cron: '37 5 * * *'
   workflow_dispatch:
 
 concurrency:

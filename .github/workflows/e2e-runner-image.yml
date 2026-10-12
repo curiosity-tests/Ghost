@@ -11,8 +11,6 @@ name: Publish E2E Runner Image
 # version bump keeps CI green until this workflow publishes the new tag on merge.
 on:
   workflow_dispatch: # Manual trigger from GitHub UI or CLI
-  schedule:
-    - cron: '0 6 * * 1' # Weekly (Mon 06:00 UTC) to absorb base-image security patches
   push:
     branches: [main]
     paths:

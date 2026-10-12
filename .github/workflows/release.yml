@@ -2,8 +2,6 @@ name: Release
 run-name: "Release — ${{ inputs.bump-type || 'auto' }} from main${{ inputs.dry-run && ' (dry run)' || '' }}"
 
 on:
-  schedule:
-    - cron: '0 15 * * 2' # Tuesday 3pm UTC
   workflow_dispatch:
     inputs:
       bump-type:
